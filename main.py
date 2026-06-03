@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlmodel import SQLModel, create_engine, select, Field, Session
 
@@ -46,3 +46,15 @@ def list_questions():
     with Session(engine) as session:
         questions = session.exec(select(QuestionLog)).all()
     return questions
+
+
+
+@app.get("/questions/{question_id}")
+def read_question(question_id: int):
+    with Session(engine) as session:
+        question = session.exec(
+            select(QuestionLog).where(QuestionLog.id == question_id)
+        ).first()
+    if question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question
