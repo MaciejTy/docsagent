@@ -1,27 +1,18 @@
-from datetime import datetime, timezone
-
+from models import QuestionLog, Question
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from sqlmodel import SQLModel, create_engine, select, Field, Session
+from sqlmodel import SQLModel, create_engine, select, Session
+from contextlib import asynccontextmanager
 
-app = FastAPI()
 
 engine = create_engine('sqlite:///docsagent.db')
 
-class Question(BaseModel):
-    text: str
-    max_results: int = 3
 
-
-class QuestionLog(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    text: str
-    max_results: int = 3
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-@app.on_event('startup')
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     SQLModel.metadata.create_all(engine)
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 def read_root():
@@ -36,8 +27,8 @@ def ask_question(question: Question):
         session.refresh(log)
     return {
         "id": log.id,
-        "text": question.text,
-        "max_results": question.max_results,
+        "text": log.text,
+        "max_results": log.max_results,
         "created_at": log.created_at,
     }
 
