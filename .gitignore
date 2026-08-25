@@ -180,4 +180,6 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 docsagent.db
-playground.py
+playground.py.idea/
+.venv/
+*.pyc
