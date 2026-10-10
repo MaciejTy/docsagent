@@ -13,6 +13,7 @@ def utc_now():
 class Question(BaseModel):
     text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     max_results: int = PydanticField(default=3, ge=1, le=20)
+    generate: bool = True
 
 
 class QuestionLog(SQLModel, table=True):
@@ -48,4 +49,6 @@ class SearchResult(BaseModel):
 class AskResponse(BaseModel):
     question_id: int
     text: str
+    answer: str | None = None
+    answer_error: str | None = None
     results: list[SearchResult]

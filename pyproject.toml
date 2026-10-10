@@ -5,6 +5,7 @@ description = "Question answering over markdown documentation (semantic search A
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=1.13.0",
     "fastapi>=0.136.3",
     "numpy>=2.4.6",
     "sentence-transformers>=5.5.1",

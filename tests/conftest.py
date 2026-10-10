@@ -36,3 +36,23 @@ class FakeEmbedder:
 @pytest.fixture
 def fake_embedder():
     return FakeEmbedder()
+
+
+class FakeAnswerer:
+    """Zamiast Claude: zapamiętuje wywołania i zwraca stały tekst albo rzuca ustawiony błąd."""
+
+    def __init__(self):
+        self.calls = []
+        self.answer = "Generated answer [1]."
+        self.error = None
+
+    def __call__(self, question, results):
+        self.calls.append((question, len(results)))
+        if self.error is not None:
+            raise self.error
+        return self.answer
+
+
+@pytest.fixture
+def fake_answerer():
+    return FakeAnswerer()

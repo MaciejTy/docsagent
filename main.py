@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException
 from sqlmodel import Session, select
 
+from answering import Answerer, AnswerError, generate_answer
 from db import create_db, engine
 from embeddings import Embedder, embed, get_model
 from models import AskResponse, Question, QuestionLog
@@ -28,8 +29,13 @@ def get_embedder() -> Embedder:
     return embed
 
 
+def get_answerer() -> Answerer:
+    return generate_answer
+
+
 SessionDep = Annotated[Session, Depends(get_session)]
 EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
+AnswererDep = Annotated[Answerer, Depends(get_answerer)]
 
 
 @app.get("/")
@@ -38,7 +44,7 @@ def read_root():
 
 
 @app.post("/ask", response_model=AskResponse)
-def ask_question(question: Question, session: SessionDep, embedder: EmbedderDep):
+def ask_question(question: Question, session: SessionDep, embedder: EmbedderDep, answerer: AnswererDep):
     log = QuestionLog(text=question.text, max_results=question.max_results)
     session.add(log)
     session.commit()
@@ -46,7 +52,23 @@ def ask_question(question: Question, session: SessionDep, embedder: EmbedderDep)
 
     query_vector = embedder([question.text])[0]
     results = search(session, query_vector, question.max_results)
-    return AskResponse(question_id=log.id, text=log.text, results=results)
+
+    answer = None
+    answer_error = None
+    if question.generate and results:
+        try:
+            answer = answerer(question.text, results)
+        except AnswerError as error:
+            # Wyszukiwanie się udało, więc zwracamy fragmenty mimo awarii LLM.
+            answer_error = str(error)
+
+    return AskResponse(
+        question_id=log.id,
+        text=log.text,
+        answer=answer,
+        answer_error=answer_error,
+        results=results,
+    )
 
 
 @app.get("/questions")

@@ -39,12 +39,14 @@ Projekt ma pozostać prosty i czytelny. Wyszukiwanie z etapu 1 nie zmienia się.
 - `build_prompt(question: str, results: list[SearchResult]) -> str` — czysta funkcja;
   nie dotyka sieci.
 - `generate_answer(question: str, results: list[SearchResult]) -> str` — wywołuje
-  Claude i zwraca tekst odpowiedzi. Każdy błąd (brak klucza, błąd API, timeout, pusta
-  odpowiedź) zamienia na `AnswerError` z krótkim opisem.
+  Claude i zwraca tekst odpowiedzi. Każdy błąd (brak danych logowania, błąd API,
+  timeout, odmowa modelu, pusta odpowiedź) zamienia na `AnswerError` z krótkim opisem.
+  Odpowiedź ucięta limitem tokenów jest zwracana taka, jaka jest.
 - `Answerer = Callable[[str, list[SearchResult]], str]` — typ wstrzykiwany do endpointu.
 
 Klient SDK jest tworzony leniwie przy pierwszym wywołaniu, więc serwer i testy
-startują bez klucza.
+startują bez klucza. Kod nie sprawdza sam zmiennej `ANTHROPIC_API_KEY`: SDK potrafi
+też użyć profilu z `ant auth login`, więc o braku danych logowania decyduje SDK.
 
 ## Prompt
 
@@ -101,23 +103,29 @@ pomijany, gdy `heading_path` jest pusty.
 | Wygenerowano odpowiedź | tekst | `null` | tak |
 | `generate: false` | `null` | `null` | nie |
 | Brak wyników (pusty indeks) | `null` | `null` | nie |
-| Brak klucza, błąd API, timeout | `null` | krótki opis | tak (nieudane) |
+| Brak danych logowania, błąd API, timeout, odmowa | `null` | krótki opis | tak (nieudane) |
 
 We wszystkich czterech przypadkach status to `200`, a `results` jest wypełnione jak
 w etapie 1. Pytanie jest zawsze logowane do `questionlog`. Walidacja wejścia (`422`)
 bez zmian.
 
-`answer_error` to komunikat dla człowieka (np. `ANTHROPIC_API_KEY is not set`,
-`Claude API error: rate limited`); nie zawiera klucza ani pełnej treści wyjątku.
+`answer_error` to stały komunikat dla człowieka (np.
+`Claude credentials not found (set ANTHROPIC_API_KEY)`, `Claude API error: rate limited`);
+nie zawiera klucza ani treści wyjątku.
 
 ## Konfiguracja
 
 | Zmienna | Domyślnie | Znaczenie |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Klucz API; bez niego `answer_error` informuje o braku |
+| `ANTHROPIC_API_KEY` | — | Klucz API; bez danych logowania `answer_error` informuje o braku |
 | `DOCSAGENT_MODEL` | `claude-opus-5-5` | Identyfikator modelu (np. `claude-haiku-5-5` dla niższego kosztu) |
 
-Limit długości odpowiedzi: 1024 tokeny. Timeout wywołania: 30 sekund.
+Parametry wywołania: `max_tokens` 16000 (limit obejmuje też myślenie modelu, które
+w `claude-opus-5-5` jest zawsze włączone), `effort` `low` (krótka odpowiedź z gotowych
+fragmentów nie wymaga głębokiego rozumowania), timeout 60 sekund (5 sekund na
+połączenie), bez ponowień przez SDK — endpoint jest synchroniczny, więc błąd ma wrócić
+szybko. Szczegóły błędu trafiają do logu serwera (`logging`), nie do odpowiedzi. Bez serwerowego mechanizmu `fallbacks`: model jest konfigurowalny, a nie
+każdy go obsługuje; odmowa modelu kończy się `answer_error`.
 
 ## Testy (pytest)
 
@@ -125,8 +133,8 @@ Limit długości odpowiedzi: 1024 tokeny. Timeout wywołania: 30 sekund.
 
 - `test_answering.py` — `build_prompt`: numeracja od 1 w kolejności wyników, źródło
   i sekcja w atrybutach, pominięcie `section` przy pustej ścieżce, pytanie w prompcie;
-  `generate_answer` z atrapą klienta: zwraca tekst, brak klucza → `AnswerError`,
-  wyjątek SDK → `AnswerError`.
+  `generate_answer` z atrapą klienta: zwraca tekst, model z `DOCSAGENT_MODEL`,
+  odmowa / pusta odpowiedź / brak danych logowania / wyjątki SDK → `AnswerError`.
 - `test_api.py` — z atrapą generatora: `answer` w odpowiedzi; `generate: false` nie
   wywołuje generatora; pusty indeks nie wywołuje generatora; generator rzucający
   `AnswerError` → `200`, `answer: null`, `answer_error` ustawione, `results` obecne.

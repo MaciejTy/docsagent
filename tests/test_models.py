@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from sqlmodel import select
 
 from embeddings import from_bytes, to_bytes
-from models import Chunk, Document, Question
+from models import AskResponse, Chunk, Document, Question
 
 
 def test_question_rejects_blank_text():
@@ -35,3 +35,14 @@ def test_chunk_embedding_roundtrip_through_database(session):
 
     stored = session.exec(select(Chunk)).one()
     assert np.array_equal(from_bytes(stored.embedding), vector)
+
+
+def test_question_generates_answer_by_default():
+    assert Question(text="hi").generate is True
+    assert Question(text="hi", generate=False).generate is False
+
+
+def test_ask_response_answer_fields_default_to_none():
+    response = AskResponse(question_id=1, text="hi", results=[])
+    assert response.answer is None
+    assert response.answer_error is None
