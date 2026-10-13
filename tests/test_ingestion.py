@@ -66,3 +66,41 @@ def test_ingest_folder_reports_each_file_and_survives_bad_one(session, tmp_path,
 def test_main_rejects_missing_folder(tmp_path, capsys):
     assert main(["ingestion.py", str(tmp_path / "nope")]) == 1
     assert "not a directory" in capsys.readouterr().out
+
+
+def test_ingest_folder_removes_documents_whose_file_is_gone(session, tmp_path, fake_embedder):
+    kept = write(tmp_path, "kept.md", "# Kept\n\ntext\n")
+    gone = write(tmp_path, "gone.md", "# Gone\n\ntext\n")
+    ingest_folder(session, tmp_path, fake_embedder)
+    gone.unlink()
+
+    report = ingest_folder(session, tmp_path, fake_embedder)
+
+    assert report == {kept.as_posix(): "unchanged", gone.as_posix(): "removed"}
+    assert [d.path for d in session.exec(select(Document)).all()] == [kept.as_posix()]
+    assert [c.text for c in session.exec(select(Chunk)).all()] == ["text"]
+    assert len(chunks_of(session, kept)) == 1
+
+
+def test_ingest_folder_leaves_documents_from_other_folders(session, tmp_path, fake_embedder):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs2").mkdir()
+    write(tmp_path / "docs", "a.md", "# A\n\ntext\n")
+    other = write(tmp_path / "docs2", "b.md", "# B\n\ntext\n")
+    ingest_folder(session, tmp_path / "docs2", fake_embedder)
+
+    report = ingest_folder(session, tmp_path / "docs", fake_embedder)
+
+    assert other.as_posix() not in report
+    assert len(chunks_of(session, other)) == 1
+
+
+def test_unreadable_file_keeps_its_old_chunks(session, tmp_path, fake_embedder):
+    path = write(tmp_path, "guide.md", "# Guide\n\ntext\n")
+    ingest_folder(session, tmp_path, fake_embedder)
+    path.write_bytes(b"\xff\xfe not utf-8")
+
+    report = ingest_folder(session, tmp_path, fake_embedder)
+
+    assert report[path.as_posix()].startswith("error:")
+    assert len(chunks_of(session, path)) == 1

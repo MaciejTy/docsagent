@@ -112,3 +112,19 @@ def test_answer_failure_still_returns_results(client, indexed, fake_answerer):
     assert body["answer"] is None
     assert body["answer_error"] == "Claude credentials not found (set ANTHROPIC_API_KEY)"
     assert len(body["results"]) == 2
+
+
+def test_database_is_released_before_answer_is_generated(client, session, indexed):
+    in_transaction = []
+
+    def answerer(question, results):
+        in_transaction.append(session.in_transaction())
+        return "ok"
+
+    app.dependency_overrides[get_answerer] = lambda: answerer
+
+    body = client.post("/ask", json={"text": "anything"}).json()
+
+    assert in_transaction == [False]
+    assert body["answer"] == "ok"
+    assert client.get(f"/questions/{body['question_id']}").status_code == 200

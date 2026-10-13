@@ -53,7 +53,17 @@ def ingest_folder(session: Session, folder: Path, embedder: Embedder) -> dict[st
             report[path.as_posix()] = f"error: {error}"
             continue
         report[path.as_posix()] = "unchanged" if count is None else f"indexed {count} chunks"
+    for document in session.exec(select(Document)).all():
+        if document.path not in report and Path(document.path).is_relative_to(folder):
+            remove_document(session, document)
+            report[document.path] = "removed"
     return report
+
+
+def remove_document(session: Session, document: Document) -> None:
+    session.exec(delete(Chunk).where(Chunk.document_id == document.id))
+    session.delete(document)
+    session.commit()
 
 
 def main(argv: list[str]) -> int:

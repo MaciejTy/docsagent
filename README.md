@@ -9,7 +9,7 @@ pisze odpowiedź ze wskazaniem źródeł.
 
 ```bash
 uv sync
-uv run python ingestion.py sample_docs/    # indeksowanie (ponowne uruchomienie pomija niezmienione pliki)
+uv run python ingestion.py sample_docs/    # indeksowanie (ponowne uruchomienie pomija niezmienione pliki i usuwa z indeksu skasowane)
 uv run uvicorn main:app --reload           # API na http://localhost:8000, dokumentacja: /docs
 ```
 
@@ -38,5 +38,4 @@ uv run pytest
 
 ## Ograniczenia
 
-- Usunięcie pliku z folderu nie usuwa jego fragmentów z bazy.
 - Wyszukiwanie liczy podobieństwo do wszystkich fragmentów — wystarcza do kilkudziesięciu tysięcy.

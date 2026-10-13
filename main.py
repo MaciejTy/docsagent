@@ -52,6 +52,8 @@ def ask_question(question: Question, session: SessionDep, embedder: EmbedderDep,
 
     query_vector = embedder([question.text])[0]
     results = search(session, query_vector, question.max_results)
+    # Claude może odpowiadać kilkadziesiąt sekund — nie trzymamy w tym czasie połączenia z bazą.
+    session.close()
 
     answer = None
     answer_error = None
